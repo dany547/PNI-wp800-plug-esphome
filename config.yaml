@@ -1,0 +1,150 @@
+substitutions:
+  devicename: PMI-WP800-plug
+  current_res: "0.002" 
+# Higher value gives lower watt readout
+  voltage_div: "895" 
+# Lower value gives lower voltage readout
+
+esphome:
+  name: ${devicename}
+  friendly_name: AirCon-Plug
+
+bk72xx:
+  board: generic-bk7231t-qfn32-tuya
+  framework:
+    version: dev
+
+# Enable logging
+logger:
+
+web_server:
+
+# Enable Home Assistant API
+api:
+
+ota:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  manual_ip:
+    # You must replace this values with your own.  
+    static_ip: 10.100.10.60
+    gateway: 10.100.10.1
+    subnet: 255.255.255.0
+# Enable fallback hotspot in case wifi connection fails
+  ap:
+    ssid: "${devicename}"
+    password: "12345678"
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+button:
+- platform: restart
+  name: Restart
+
+debug:
+  update_interval: 30s
+
+text_sensor:
+- platform: debug
+  reset_reason:
+    name: Reset Reason
+- platform: libretiny
+  version:
+    name: LibreTiny Version
+
+sensor:
+- platform: hlw8012
+  model: BL0937
+  voltage_divider: ${voltage_div}
+  current_resistor: ${current_res}
+  change_mode_every: 8
+  update_interval: 10s
+  cf_pin:
+    number: P7
+    inverted: true
+  cf1_pin:
+    number: P8
+    inverted: true
+  sel_pin:
+    number: P24
+    inverted: true
+  current:
+    name: AC Current
+    unit_of_measurement: A
+    accuracy_decimals: 3
+  voltage:
+    name: AC Voltage
+  power:
+    id: watts
+    name: AC power
+    unit_of_measurement: W
+
+# Reports the total Power so-far each day, resets at midnight, see https://esphome.io/components/sensor/total_daily_energy.html
+- platform: total_daily_energy
+  name: Total Daily Energy
+  icon: mdi:circle-slice-3
+  power_id: watts
+  filters:
+# Multiplication factor from W to kW is 0.001
+    - multiply: 0.001
+  unit_of_measurement: kWh
+# Device uptime
+- platform: uptime
+  name: ${devicename} Uptime
+# Device WiFi signal strength
+- platform: wifi_signal
+  name: ${devicename} Wifi Signal
+  update_interval: 60s 
+
+binary_sensor:
+- platform: gpio
+  id: binary_switch_1
+  internal: false
+  pin:
+    number: P10
+    inverted: true
+    mode: INPUT_PULLUP
+  on_press:
+    then:
+    - switch.toggle: relay
+  filters:
+    - delayed_on: 10ms
+    - delayed_off: 10ms
+
+
+light:
+  - platform: status_led
+    internal: true
+    name: "Relay Status"
+    output: led_status
+
+output:
+  - id: led_status
+    platform: gpio
+    inverted: true
+    pin: P6
+    
+
+switch:
+- platform: gpio
+  id: relay
+  name: Relay_AC
+  pin: P26
+  restore_mode: RESTORE_DEFAULT_ON
+# Tries to restore relay state after reboot or power-loss event.
+  on_turn_on:
+      then:
+        - output.turn_on: led_status
+# Turn the led on when the relay is on
+  on_turn_off:
+      then:
+        - output.turn_off: led_status
+# Turn the led off when the relay is off
+
+
+
